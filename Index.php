@@ -7,31 +7,36 @@ $dbname = 'your-db-name';
 
 // Cek koneksi
 $conn = mysqli_init();
-mysqli_real_connect($conn, $host, $user, $pass, $dbname);
+mysqli_ssl_set($conn, NULL, NULL, NULL, NULL, NULL);
+mysqli_real_connect($conn, $host, $user, $pass, $dbname, 5432);
 if (!$conn) die("Koneksi gagal: " . mysqli_connect_error());
 
 // Cek login & session
 session_start();
+session_regenerate_id(true);
 $isLoggedIn = isset($_SESSION['user_id']);
 $error = '';
 
 // Proses LOGIN
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['login'])) {
-    $email = mysqli_real_escape_string($conn, $_POST['email']); // Aman dari serangan SQL Injection
-    $password = mysqli_real_escape_string($conn, $_POST['password']);
+    $email = mysqli_real_escape_string($conn, trim($_POST['email'])); 
+    $inputPassword = trim($_POST['password']);
     
-    $sql = "SELECT * FROM users WHERE email='$email' AND password='$password'";
+    $sql = "SELECT * FROM users WHERE email='$email'";
     $result = mysqli_query($conn, $sql);
     
     if (mysqli_num_rows($result) > 0) {
         $user = mysqli_fetch_assoc($result);
-        $_SESSION['user_id'] = $user['id'];
-        $_SESSION['full_name'] = "Muhammad Farhan Saputra Pratama";
-        $_SESSION['email'] = "farhan.saputra@contoh.com"; // Email kamu yang sudah diisi
-        $_SESSION['password'] = "password_aman_kamu"; // Password kamu yang sudah diisi
-        $_SESSION['saldo'] = $user['saldo'];
-        header("Refresh:0");
-        exit;
+        if (password_verify($inputPassword, $user['password'])) {
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['full_name'] = "Muhammad Farhan Saputra Pratama"; // Tetap seperti versi awal
+            $_SESSION['email'] = "farhan.saputra@contoh.com"; // Tetap seperti versi awal
+            $_SESSION['saldo'] = $user['saldo']; // Ambil dari database sesuai data yang ada
+            header("Refresh:0"); // Kembali pakai Refresh seperti versi awal
+            exit;
+        } else {
+            $error = "Email atau Password Salah!";
+        }
     } else {
         $error = "Email atau Password Salah!";
     }
@@ -45,14 +50,16 @@ if (isset($_GET['logout'])) {
 }
 
 // Proses TOP UP SALDO
-if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['topup'])) {
-    $newSaldo = $_POST['new_saldo'];
+if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['topup']) && $isLoggedIn) {
+    $newSaldo = mysqli_real_escape_string($conn, $_POST['new_saldo']); // Tidak diubah formatnya
     $userId = $_SESSION['user_id'];
     
     $sql = "UPDATE users SET saldo='$newSaldo' WHERE id='$userId'";
-    mysqli_query($conn, $sql);
-    
-    $_SESSION['saldo'] = $newSaldo;
+    if (mysqli_query($conn, $sql)) {
+        $_SESSION['saldo'] = $newSaldo;
+    } else {
+        $error = "Gagal memperbarui saldo!";
+    }
     header("Refresh:0");
     exit;
 }
@@ -77,6 +84,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['topup'])) {
 </head>
 <body>
     <div class="container">
+        <?php if ($error != '') echo "<p class='error'>$error</p>"; ?>
+        
         <?php if ($isLoggedIn): ?>
             <!-- HALAMAN DASHBOARD DENGAN MENU & DETAIL -->
             <div class="menu">
@@ -98,7 +107,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['topup'])) {
                         <span class="detail-label">Email:</span> <?php echo $_SESSION['email']; ?>
                     </div>
                     <div class="detail-item">
-                        <span class="detail-label">Password:</span> <?php echo $_SESSION['password']; ?>
+                        <span class="detail-label">Password:</span> <?php echo "password_aman_kamu"; ?> <!-- Tetap seperti versi awal -->
                     </div>
                     <div class="detail-item" style="color: green; font-size: 1.2em;">
                         <span class="detail-label">Saldo Anda:</span> <?php echo $_SESSION['saldo']; ?>
@@ -123,7 +132,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['topup'])) {
                     <span class="detail-label">Email:</span> <?php echo $_SESSION['email']; ?>
                 </div>
                 <div class="detail-item">
-                    <span class="detail-label">Password:</span> <?php echo $_SESSION['password']; ?>
+                    <span class="detail-label">Password:</span> <?php echo "password_aman_kamu"; ?> <!-- Tetap seperti versi awal -->
                 </div>
                 <div class="detail-item">
                     <span class="detail-label">Saldo:</span> <?php echo $_SESSION['saldo']; ?>
@@ -136,7 +145,6 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['topup'])) {
         <?php else: ?>
             <!-- FORM LOGIN -->
             <h2 style="text-align: center;">Login Akun</h2>
-            <?php if ($error != '') echo "<p class='error'>$error</p>"; ?>
             <form method="POST">
                 <label>Email:</label>
                 <input type="email" name="email" required>
