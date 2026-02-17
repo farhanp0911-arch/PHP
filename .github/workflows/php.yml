@@ -27,8 +27,7 @@ jobs:
         run: |
           php -l Index.php
           echo "Sintaks kode PHP sudah benar!"
-          - name: Tes ekstensi
-            run: |
+
+      - name: Tes ekstensi
+        run: |
           php -m | grep -E 'mysqli|session'
-  
-    
